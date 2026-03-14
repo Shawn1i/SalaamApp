@@ -1,18 +1,43 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AudioButton from "./AudioButton";
+import SpeechFeedback from "./SpeechFeedback";
+
+// Compute per-word match info and overall confidence score
+function analyzeSpeech(sentence, keyword, spokenText) {
+  const sentenceWords = sentence
+    .replace(/[.,!?]/g, "")
+    .split(" ")
+    .filter(Boolean);
+
+  const spokenWords = spokenText.toLowerCase().replace(/[.,!?]/g, "").split(" ").filter(Boolean);
+
+  // Score each word in the sentence
+  const wordResults = sentenceWords.map((word) => {
+    const clean = word.toLowerCase();
+    const matched = spokenWords.some(
+      (sw) => sw === clean || sw.includes(clean) || clean.includes(sw)
+    );
+    const isKey = clean === keyword.toLowerCase();
+    return { word, matched, isKey };
+  });
+
+  const matchedCount = wordResults.filter((w) => w.matched).length;
+  const confidence = Math.round((matchedCount / sentenceWords.length) * 100);
+  const keywordMatched = wordResults.find((w) => w.isKey)?.matched || false;
+
+  return { wordResults, confidence, keywordMatched };
+}
 
 export default function TestCard({ card, onResult }) {
   const [result, setResult] = useState(null); // 'correct' | 'incorrect' | null
   const [isListening, setIsListening] = useState(false);
-  const [spokenWord, setSpokenWord] = useState("");
+  const [speechData, setSpeechData] = useState(null); // { wordResults, confidence, spokenText }
   const recognitionRef = useRef(null);
 
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      if (recognitionRef.current) recognitionRef.current.abort();
     };
   }, []);
 
@@ -24,7 +49,6 @@ export default function TestCard({ card, onResult }) {
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      // Fallback: just reveal answer
       handleReveal();
       return;
     }
@@ -36,20 +60,37 @@ export default function TestCard({ card, onResult }) {
     recognition.maxAlternatives = 5;
 
     recognition.onresult = (event) => {
-      const results = Array.from(event.results[0]);
-      const spoken = results.map((r) => r.transcript.toLowerCase().trim());
-      setSpokenWord(spoken[0] || "");
+      const alternatives = Array.from(event.results[0]);
+      const bestTranscript = alternatives[0]?.transcript?.toLowerCase().trim() || "";
+      const nativeConfidence = alternatives[0]?.confidence ?? null;
 
-      const isCorrect = spoken.some((s) =>
-        s.includes(card.keyword.toLowerCase())
+      // Pick the alternative that contains the keyword if any
+      const keywordAlt = alternatives.find((a) =>
+        a.transcript.toLowerCase().includes(card.keyword.toLowerCase())
       );
+      const spokenText = keywordAlt?.transcript?.toLowerCase().trim() || bestTranscript;
+
+      const { wordResults, confidence, keywordMatched } = analyzeSpeech(
+        card.sentence,
+        card.keyword,
+        spokenText
+      );
+
+      // Blend native confidence with our word-match score
+      const finalConfidence =
+        nativeConfidence !== null
+          ? Math.round((nativeConfidence * 100 * 0.5 + confidence * 0.5))
+          : confidence;
+
+      setSpeechData({ wordResults, confidence: finalConfidence, spokenText });
+
+      const isCorrect = keywordMatched;
 
       if (isCorrect) {
         setResult("correct");
         onResult(true);
       } else {
         setResult("incorrect");
-        // Speak the correct word
         const utterance = new SpeechSynthesisUtterance(card.keyword);
         utterance.rate = 0.7;
         utterance.lang = "en-US";
@@ -59,13 +100,8 @@ export default function TestCard({ card, onResult }) {
       setIsListening(false);
     };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
 
     recognition.start();
     setIsListening(true);
@@ -96,15 +132,41 @@ export default function TestCard({ card, onResult }) {
             : "border-slate-100"
         }`}
       >
-        {/* Image placeholder (hidden in test) */}
+        {/* Image hidden in test */}
         <div className="w-full aspect-video bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
           <span className="text-7xl">❓</span>
         </div>
 
-        <div className="p-6 space-y-5">
-          <p className="text-xl font-semibold text-slate-800 text-center leading-relaxed">
-            {blankSentence}
-          </p>
+        <div className="p-6 space-y-4">
+          {/* Sentence with highlighted words (post-result) or blank sentence */}
+          {speechData && result ? (
+            <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-1.5">
+              {speechData.wordResults.map((w, i) => (
+                <motion.span
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className={`text-lg font-semibold px-1.5 py-0.5 rounded-lg ${
+                    w.matched
+                      ? "bg-green-100 text-green-800"
+                      : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
+                  {w.word}
+                </motion.span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xl font-semibold text-slate-800 text-center leading-relaxed">
+              {blankSentence}
+            </p>
+          )}
+
+          {/* Confidence bar */}
+          {speechData && (
+            <SpeechFeedback confidence={speechData.confidence} spokenText={speechData.spokenText} />
+          )}
 
           <AnimatePresence mode="wait">
             {result === null && (
@@ -164,12 +226,6 @@ export default function TestCard({ card, onResult }) {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {spokenWord && result && (
-            <p className="text-center text-sm text-slate-400">
-              🗣️ "{spokenWord}"
-            </p>
-          )}
         </div>
       </div>
     </motion.div>
