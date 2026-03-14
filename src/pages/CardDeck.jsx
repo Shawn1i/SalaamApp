@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import EmojiNav from "../components/EmojiNav";
 import SwipeCard from "../components/SwipeCard";
 import NotesPanel from "../components/NotesPanel";
+import AISuggestPanel from "../components/AISuggestPanel";
 
 export default function CardDeck() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -14,6 +15,7 @@ export default function CardDeck() {
   const [user, setUser] = useState(null);
   const [progressMap, setProgressMap] = useState({});
   const [showNotes, setShowNotes] = useState(false);
+  const [showAISuggest, setShowAISuggest] = useState(false);
   const [deckComplete, setDeckComplete] = useState(false);
   const [stats, setStats] = useState({ learned: 0, reviewing: 0 });
 
@@ -175,6 +177,27 @@ export default function CardDeck() {
             </motion.div>
           )}
         </div>
+
+        {/* AI Suggest button */}
+        {currentCard && !deckComplete && (
+          <div className="flex justify-center mt-4">
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              onClick={() => setShowAISuggest(true)}
+              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-500 text-white rounded-2xl px-6 py-4 shadow-lg text-2xl"
+            >
+              <span>🤖</span>
+              <span>✨</span>
+            </motion.button>
+          </div>
+        )}
+
+        {/* AI Suggest panel */}
+        <AISuggestPanel
+          keyword={currentCard?.keyword}
+          isOpen={showAISuggest}
+          onClose={() => setShowAISuggest(false)}
+        />
 
         {/* Notes panel */}
         <NotesPanel
