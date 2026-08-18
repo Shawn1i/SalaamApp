@@ -1,0 +1,22 @@
+{
+  "name": "CardNote",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "card_id": {
+      "type": "string"
+    },
+    "note_text": {
+      "type": "string"
+    },
+    "audio_note_url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "card_id"
+  ]
+}

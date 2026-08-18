@@ -1,0 +1,35 @@
+{
+  "name": "UserCardProgress",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User email"
+    },
+    "card_id": {
+      "type": "string",
+      "description": "Card record ID"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "learning",
+        "learned"
+      ],
+      "default": "learning",
+      "description": "Current status"
+    },
+    "times_seen": {
+      "type": "number",
+      "default": 0
+    },
+    "times_correct": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "user_id",
+    "card_id"
+  ]
+}
